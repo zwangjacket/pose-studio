@@ -1,0 +1,26 @@
+{
+  "repository": "https://github.com/storytold/artcraft",
+  "commit": "d4e4ac69bbd93d237eaf5d0260bc6a5ff3a5e373",
+  "files": [
+    {
+      "local_path": "engine/KinHelpers/FKHelper.ts",
+      "upstream_path": "frontend/libs/components/pagescene/src/lib/engine/KinHelpers/FKHelper.ts",
+      "sha256": "0090428a7d1a099e0790771688964fe8450c8a28c7a9ef896cb7e851f13cdc10"
+    },
+    {
+      "local_path": "engine/KinHelpers/FKBoneFilter.ts",
+      "upstream_path": "frontend/libs/components/pagescene/src/lib/engine/KinHelpers/FKBoneFilter.ts",
+      "sha256": "535a6c0e212052072b2d365ee9c572a98f83d5ac29e44a1ad3f02eaaa818d2a3"
+    },
+    {
+      "local_path": "engine/KinHelpers/BoneJSONHelper.ts",
+      "upstream_path": "frontend/libs/components/pagescene/src/lib/engine/KinHelpers/BoneJSONHelper.ts",
+      "sha256": "db0a085d914fd20cc9ffb042f0e6a98b3ffedbbe7635d88ce19036bec4ce722a"
+    },
+    {
+      "local_path": "engine/TransformControls.js",
+      "upstream_path": "frontend/libs/components/pagescene/src/lib/engine/TransformControls.js",
+      "sha256": "47274276427a1be150181a67b9709785cd642f38681260a55fc148a4aeb6faaf"
+    }
+  ]
+}

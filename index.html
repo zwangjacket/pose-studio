@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Pose Studio · Female mannequin</title>
+  <link rel="stylesheet" href="./assets/pose.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">P</span><span>Pose Studio <small>LOCAL WORKSPACE</small></span></div>
+    <nav aria-label="Manipulation mode">
+      <button data-mode="translate" aria-pressed="false">Move <kbd>W</kbd></button>
+      <button data-mode="rotate" aria-pressed="false">Rotate <kbd>E</kbd></button>
+      <button data-mode="scale" aria-pressed="false">Scale <kbd>R</kbd></button>
+      <button data-mode="pose" aria-pressed="true">Pose <kbd>P</kbd></button>
+    </nav>
+    <div class="history"><button id="undo" disabled title="Undo (⌘/Ctrl Z)">Undo</button><button id="redo" disabled title="Redo (⌘/Ctrl Shift Z)">Redo</button></div>
+  </header>
+  <main>
+    <section id="viewport" aria-label="Interactive 3D mannequin">
+      <div class="scene-title"><span class="eyebrow">01 / CHARACTER STUDY</span><h1>A pose of your own.</h1><p id="mode-help">Drag any golden joint (or hold Space) so connected joints follow.</p></div>
+      <div class="view-actions"><button id="front">Front view</button><button id="frame">Frame character <kbd>F</kbd></button></div>
+      <div id="joint-tooltip" hidden></div>
+      <div id="loading" role="status">Loading mannequin…</div>
+      <div class="viewport-footer"><span id="status" role="status" aria-live="polite">Preparing the scene</span><span>Drag joint (or hold Space): ragdoll pull · Empty space: orbit · Right drag: pan · Scroll: zoom</span></div>
+    </section>
+    <aside>
+      <div class="panel-heading"><span class="eyebrow">MANNEQUIN</span><span class="live-dot">Local</span></div>
+      <h2>Female figure</h2><p class="muted">Articulated mannequin · ragdoll pose</p>
+      <section class="control-section" id="pose-controls">
+        <div class="joint-bar">
+          <div>
+            <span class="section-caption">Active joint</span>
+            <strong id="active-joint-name">Left elbow</strong>
+          </div>
+          <button id="reset-joint">Reset joint</button>
+        </div>
+        <p class="hint" id="joint-help">Drag any joint (or hold <kbd>Space</kbd> and drag the body) so connected joints follow. Double-click a joint to fine-tune with rotation rings; double-click empty space to deselect. Scroll while dragging to adjust depth.</p>
+        <label class="check"><input id="joint-markers" type="checkbox" checked>Show joint markers</label>
+        <label class="check"><input id="collision-guard" type="checkbox" checked>Prevent body intersections</label>
+        <label class="check"><input id="rings" type="checkbox">Fine-tune with rotation rings <small>(or double-click joint)</small></label>
+        <p id="guard-status" class="guard-status" role="status" aria-live="polite">Pose is clear. Checks use approximate body volumes.</p>
+      </section>
+      <section class="control-section" id="transform-controls" hidden>
+        <div id="numeric-transform">
+          <div class="section-label"><label id="transform-label">Position</label><span id="units">meters</span></div>
+          <div class="axes">
+            <label class="axis-x">X<input id="axis-x" type="number" step="0.05" aria-label="X position"></label>
+            <label class="axis-y">Y<input id="axis-y" type="number" step="0.05" aria-label="Y position"></label>
+            <label class="axis-z">Z<input id="axis-z" type="number" step="0.05" aria-label="Z position"></label>
+          </div>
+        </div>
+        <label id="space-row" class="row" for="space">Handle axes<select id="space"><option value="world">World</option><option value="local">Local</option></select></label>
+        <label class="check"><input id="snap" type="checkbox">Snap movement / rotation</label>
+        <p class="hint">Snap: 0.1 m · 15° · 0.1 scale</p>
+      </section>
+      <section class="control-section">
+        <div id="preset-controls">
+          <label for="starter-pose">Start from a pose</label>
+          <select id="starter-pose"><option value="">Choose a starter…</option><option value="neutral">Relaxed standing</option><option value="wave">Wave</option><option value="open">Arms open</option><option value="reach">Reach forward</option><option value="crossed">Arms crossed</option><option value="behind">Hands behind back</option><option value="kneel">Kneel</option><option value="laying">Laying down</option></select>
+        </div>
+        <label class="check"><input id="female-form" type="checkbox" checked>Soft female form (less skeletal)</label>
+        <label class="check"><input id="skeleton" type="checkbox">Show skeleton</label>
+        <button class="wide" id="reset">Reset figure</button>
+        <p class="hint">Resets position and pose. You can undo it.</p>
+      </section>
+      <section class="control-section save-section">
+        <span class="eyebrow">KEEP YOUR WORK</span>
+        <button class="primary wide" id="render-image">Render image (PNG)</button>
+        <button class="wide" id="export-glb">Download posed model</button>
+        <div class="button-pair"><button id="save-pose">Save pose</button><button id="load-pose">Load pose</button></div>
+        <input type="file" id="pose-file" accept=".json,application/json" hidden>
+        <p class="hint">Render: Studio PNG · Model: GLB · Pose: JSON</p>
+      </section>
+      <p class="credits">Built with ArtCraft’s posing controls.</p>
+    </aside>
+  </main>
+  <dialog id="render-modal" class="render-modal" aria-labelledby="render-modal-title">
+    <div class="render-modal-card">
+      <div class="render-modal-header">
+        <div>
+          <span class="eyebrow">STUDIO PORTRAIT</span>
+          <h2 id="render-modal-title">Rendered pose</h2>
+        </div>
+        <button id="close-render" type="button" aria-label="Close render preview">Close</button>
+      </div>
+      <div class="render-preview-wrap">
+        <img id="render-preview" alt="Rendered character pose">
+      </div>
+      <div class="render-modal-bar">
+        <div class="render-options">
+          <label class="check"><input id="render-female-form" type="checkbox" checked>Soft female form (less skeletal)</label>
+          <label class="render-style-label" for="render-finish">Finish
+            <select id="render-finish">
+              <option value="studio">Studio figure · athletic attire</option>
+              <option value="skin">Sculpted female · shaded skin</option>
+              <option value="clay">Sculpted bronze / clay</option>
+              <option value="mannequin">Classic jointed mannequin</option>
+            </select>
+          </label>
+        </div>
+        <div class="render-actions">
+          <button id="download-render" class="primary" type="button">Download PNG</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+  <script type="module" src="./assets/pose-app.js"></script>
+</body>
+</html>
