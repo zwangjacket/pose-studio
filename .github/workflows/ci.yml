@@ -1,0 +1,32 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: artcraft-engine/package-lock.json
+      - name: Python tests
+        run: python -m unittest discover -s tests -v
+      - name: Build and test the pose engine
+        working-directory: artcraft-engine
+        run: |
+          npm ci
+          npm run build
+          npm test
+      - name: Check the browser bundle is up to date
+        working-directory: artcraft-engine
+        run: |
+          npm run build:browser
+          git diff --exit-code -- ../assets/pose-app.js || (echo "assets/pose-app.js is stale; run npm run build:browser and commit" && exit 1)

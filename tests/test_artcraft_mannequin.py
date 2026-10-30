@@ -1,6 +1,7 @@
 """Check posing math and lossless retention of the source GLB geometry."""
 
 import importlib.util
+import json
 import math
 import sys
 import tempfile
@@ -49,6 +50,27 @@ class MannequinTests(unittest.TestCase):
         changed = [node for i, node in enumerate(after["nodes"]) if node != before["nodes"][i]]
         self.assertEqual({n["name"] for n in changed}, {
             "mixamorig:LeftArm", "mixamorig:RightArm", "mixamorig:RightForeArm"})
+
+
+    def test_write_glb_never_overwrites_an_existing_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "example.glb"
+            mannequin.write_glb(path, {"asset": {"version": "2.0"}}, [])
+            with self.assertRaises(FileExistsError):
+                mannequin.write_glb(path, {"asset": {"version": "2.0"}}, [])
+
+    def test_read_glb_rejects_non_glb_data(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "bad.glb"
+            path.write_bytes(b"not a glb file at all, just text")
+            with self.assertRaises(ValueError):
+                mannequin.read_glb(path)
+
+    def test_t_pose_leaves_the_rig_untouched(self):
+        doc = {"nodes": [{"name": "mixamorig:LeftArm", "rotation": [0, 0, 0, 1]}]}
+        before = json.dumps(doc)
+        mannequin.apply_pose(doc, "t-pose")
+        self.assertEqual(json.dumps(doc), before)
 
 
 if __name__ == "__main__":

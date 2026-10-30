@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import plistlib
 import shutil
 import subprocess
@@ -17,9 +18,11 @@ from urllib.request import Request, urlopen
 
 VERSION = "0.3.0"
 API_BASE = "https://api.storyteller.ai"
-APP_PATH = Path("/Applications/ArtCraft.app")
+# Override with ARTCRAFT_APP for non-default or non-macOS installs.
+APP_PATH = Path(os.environ.get("ARTCRAFT_APP", "/Applications/ArtCraft.app"))
 KINDS = ("image", "video")
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+BUILD_HINT = "Build the pose adapter first: cd artcraft-engine && npm ci && npm run build"
 
 
 class CliError(Exception):
@@ -29,96 +32,116 @@ class CliError(Exception):
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    handlers = {
+        "bones": cmd_pose_adapter,
+        "pose": cmd_pose_adapter,
+        "mannequin": cmd_mannequin,
+        "doctor": cmd_doctor,
+        "models": cmd_models,
+        "model": cmd_model,
+    }
     try:
-        if args.command in ("bones", "pose"):
-            adapter = Path(__file__).parent / "artcraft-engine/cli.mjs"
-            if not shutil.which("node"):
-                raise CliError("The ArtCraft pose adapter needs Node.js 20 or newer.")
-            if not (adapter.parent / "dist/FKHelper.js").exists():
-                raise CliError("Build the pose adapter first: cd artcraft-engine && npm install && npm run build")
-            command = ["node", str(adapter), args.command, "--input", str(args.input)]
-            if args.command == "bones":
-                if args.json:
-                    command.append("--json")
-            else:
-                command.extend(["--space", args.space])
-                for rotation in args.rotate:
-                    command.extend(["--rotate", rotation])
-                for option in ("output", "pose_in", "pose_out", "snap"):
-                    if getattr(args, option) is not None:
-                        command.extend(["--" + option.replace("_", "-"), str(getattr(args, option))])
-            return subprocess.run(command, check=False).returncode
-        if args.command == "mannequin":
-            from artcraft_mannequin import build_mannequin
-            try:
-                report = build_mannequin(args.source, args.output, args.pose, args.style)
-            except (OSError, ValueError) as exc:
-                raise CliError(str(exc)) from exc
-            print_json(report)
-            return 0
-        if args.command == "doctor":
-            report = installation_report()
-            if not args.offline:
-                catalog = fetch_catalog("image", "artcraft", args.timeout)
-                report["catalog_check"] = {
-                    "status": "ok",
-                    "endpoint": catalog["source"],
-                    "model_count": len(catalog["models"]),
-                    "credentials_sent": False,
-                }
-            else:
-                report["catalog_check"] = {"status": "not checked (offline)"}
-            if args.json:
-                print_json(report)
-            else:
-                app = report["desktop_app"]
-                print(f"ArtCraft headless prototype {VERSION}")
-                print(f"Python: {report['python']}")
-                print(f"Desktop app: {app['path']}")
-                print(f"Installed version: {app.get('version') or 'not found'}")
-                print(f"Catalog: {report['catalog_check']['status']}")
-                if "model_count" in report["catalog_check"]:
-                    print(f"ArtCraft image models: {report['catalog_check']['model_count']}")
-                print("This client uses public GET requests; it does not launch the desktop app.")
-            return 0
-
-        catalog = fetch_catalog(args.kind, args.provider, args.timeout)
-        if args.command == "models":
-            models = catalog["models"]
-            if args.available_only:
-                models = [m for m in models if m.get("is_disabled") is not True]
-            if args.search:
-                term = args.search.casefold()
-                models = [m for m in models if term in (
-                    f"{m['model']} {m.get('full_name') or ''} {m.get('model_creator') or ''}"
-                ).casefold()]
-            catalog["models"] = models
-            if args.json:
-                print_json(catalog)
-            else:
-                print_models(catalog)
-        else:
-            model = next((m for m in catalog["models"] if m["model"] == args.model_id), None)
-            if model is None:
-                raise CliError(
-                    f"Unknown {args.kind} model {args.model_id!r}. "
-                    f"Try: {parser.prog} models --kind {args.kind} --provider all"
-                )
-            # Preserve every field, including new server-side options.
-            print_json({
-                "kind": args.kind,
-                "source": catalog["source"],
-                "fetched_at": catalog["fetched_at"],
-                "model": model,
-                "providers": providers_for_model(catalog, args.model_id),
-            })
-        return 0
+        return handlers[args.command](args, parser)
     except CliError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     except BrokenPipeError:
         # Allow piping a listing into head without a noisy traceback.
         return 0
+
+
+def cmd_pose_adapter(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    adapter = Path(__file__).parent / "artcraft-engine/cli.mjs"
+    if not shutil.which("node"):
+        raise CliError("The ArtCraft pose adapter needs Node.js 20 or newer.")
+    if not (adapter.parent / "dist/FKHelper.js").exists():
+        raise CliError(BUILD_HINT)
+    command = ["node", str(adapter), args.command, "--input", str(args.input)]
+    if args.command == "bones":
+        if args.json:
+            command.append("--json")
+    else:
+        command.extend(["--space", args.space])
+        for rotation in args.rotate:
+            command.extend(["--rotate", rotation])
+        for option in ("output", "pose_in", "pose_out", "snap"):
+            if getattr(args, option) is not None:
+                command.extend(["--" + option.replace("_", "-"), str(getattr(args, option))])
+    return subprocess.run(command, check=False).returncode
+
+
+def cmd_mannequin(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    from artcraft_mannequin import build_mannequin
+    try:
+        report = build_mannequin(args.source, args.output, args.pose, args.style)
+    except (OSError, ValueError) as exc:
+        raise CliError(str(exc)) from exc
+    print_json(report)
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    report = installation_report()
+    if not args.offline:
+        catalog = fetch_catalog("image", "artcraft", args.timeout)
+        report["catalog_check"] = {
+            "status": "ok",
+            "endpoint": catalog["source"],
+            "model_count": len(catalog["models"]),
+            "credentials_sent": False,
+        }
+    else:
+        report["catalog_check"] = {"status": "not checked (offline)"}
+    if args.json:
+        print_json(report)
+    else:
+        app = report["desktop_app"]
+        print(f"ArtCraft headless prototype {VERSION}")
+        print(f"Python: {report['python']}")
+        print(f"Desktop app: {app['path']}")
+        print(f"Installed version: {app.get('version') or 'not found'}")
+        print(f"Catalog: {report['catalog_check']['status']}")
+        if "model_count" in report["catalog_check"]:
+            print(f"ArtCraft image models: {report['catalog_check']['model_count']}")
+        print("This client uses public GET requests; it does not launch the desktop app.")
+    return 0
+
+
+def cmd_models(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    catalog = fetch_catalog(args.kind, args.provider, args.timeout)
+    models = catalog["models"]
+    if args.available_only:
+        models = [m for m in models if m.get("is_disabled") is not True]
+    if args.search:
+        term = args.search.casefold()
+        models = [m for m in models if term in (
+            f"{m['model']} {m.get('full_name') or ''} {m.get('model_creator') or ''}"
+        ).casefold()]
+    catalog["models"] = models
+    if args.json:
+        print_json(catalog)
+    else:
+        print_models(catalog)
+    return 0
+
+
+def cmd_model(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    catalog = fetch_catalog(args.kind, args.provider, args.timeout)
+    model = next((m for m in catalog["models"] if m["model"] == args.model_id), None)
+    if model is None:
+        raise CliError(
+            f"Unknown {args.kind} model {args.model_id!r}. "
+            f"Try: {parser.prog} models --kind {args.kind} --provider all"
+        )
+    # Preserve every field, including new server-side options.
+    print_json({
+        "kind": args.kind,
+        "source": catalog["source"],
+        "fetched_at": catalog["fetched_at"],
+        "model": model,
+        "providers": providers_for_model(catalog, args.model_id),
+    })
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
